@@ -8,10 +8,8 @@ on:
       DEPLOY_TAG_TYPE:
         description: 'Deploy Kernel version tag (example: v1 or v2)'
         required: true
-        
+
 env:
-  CHATID: ${{ secrets.CHAT_ID }}
-  API_BOT: ${{ secrets.BOT_API }}
   DEVICE_TYPE: ${{ github.event.inputs.DEPLOY_DEVICE_TYPE }}
   KERNEL_VERSION_TAG: ${{ github.event.inputs.DEPLOY_TAG_TYPE }}
 
@@ -45,3 +43,11 @@ jobs:
           chmod +x kernel.sh
           bash kernel.sh
       shell: bash
+
+    - name: Upload kernel artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: sleepy-v17-v4l2-kernel
+        path: |
+          AnyKernel3/*.zip
+          out/arch/arm64/boot/Image.gz
