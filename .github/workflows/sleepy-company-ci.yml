@@ -21,7 +21,7 @@ jobs:
 
     steps:
     - name: Creating Env!
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Setting up Env!
       run: |
