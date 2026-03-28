@@ -7,6 +7,8 @@ jobs:
   build:
     name: build ffmpeg android aarch64
     runs-on: ubuntu-24.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
@@ -44,11 +46,12 @@ jobs:
           export TARGET=aarch64
           export API=24
           export AR=$TOOLCHAIN/bin/aarch64-linux-android-ar
-          export AS=$TOOLCHAIN/bin/aarch64-linux-android-clang
+          export AS=$TOOLCHAIN/bin/aarch64-linux-android-as
           export CC=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
           export CXX=$TOOLCHAIN/bin/aarch64-linux-android$API-clang++
           export LD=$TOOLCHAIN/bin/aarch64-linux-android-ld
           export NM=$TOOLCHAIN/bin/aarch64-linux-android-nm
+          export RANLIB=$TOOLCHAIN/bin/aarch64-linux-android-ranlib
           export STRIP=$TOOLCHAIN/bin/aarch64-linux-android-strip
           export PKG_CONFIG_PATH=
           ./configure \
@@ -58,11 +61,17 @@ jobs:
             --cpu=armv8-a \
             --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- \
             --sysroot=$TOOLCHAIN/sysroot \
+            --cc=$CC \
+            --cxx=$CXX \
+            --ar=$AR \
+            --as=$AS \
+            --nm=$NM \
+            --ranlib=$RANLIB \
+            --strip=$STRIP \
             --enable-cross-compile \
             --enable-static \
             --disable-shared \
             --disable-doc \
-            --disable-programs \
             --enable-small \
             --enable-pic \
             --enable-zlib \
