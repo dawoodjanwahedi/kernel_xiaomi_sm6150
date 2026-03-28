@@ -17,15 +17,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake cmake libtool git pkg-config python3 wget tar zip unzip yasm nasm gperf perl
-
-      - name: Download gas-preprocessor
-        run: |
-          cd $HOME
-          if [ ! -f gas-preprocessor.pl ]; then
-            wget -q https://raw.githubusercontent.com/libav/gas-preprocessor/master/gas-preprocessor.pl
-            chmod +x gas-preprocessor.pl
-          fi
+          sudo apt-get install -y autoconf automake cmake libtool git pkg-config python3 wget tar zip unzip yasm nasm gperf
 
       - name: Download Android NDK r26d
         run: |
@@ -54,7 +46,7 @@ jobs:
           export TARGET=aarch64
           export API=24
           export AR=$TOOLCHAIN/bin/llvm-ar
-          export AS=$HOME/gas-preprocessor.pl
+          export AS=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
           export CC=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
           export CXX=$TOOLCHAIN/bin/aarch64-linux-android$API-clang++
           export LD=$TOOLCHAIN/bin/ld.lld
@@ -71,7 +63,7 @@ jobs:
             --cc=$CC \
             --cxx=$CXX \
             --ar=$AR \
-            --as="$AS $CC" \
+            --as=$AS \
             --nm=$NM \
             --ranlib=$RANLIB \
             --strip=$STRIP \
