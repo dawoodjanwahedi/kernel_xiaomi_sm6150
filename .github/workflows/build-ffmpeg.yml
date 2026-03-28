@@ -92,8 +92,13 @@ jobs:
           make -j$(nproc)
           make install
 
+      - name: Debug: Find ffmpeg binary
+        run: |
+          echo "Finding ffmpeg binary..."
+          find /home/runner -name "ffmpeg" -type f 2>/dev/null || echo "ffmpeg not found"
+
       - name: Upload ffmpeg binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-v4l2-android
-          path: $HOME/ffmpeg-6.1/build-aarch64/bin/ffmpeg
+          path: /home/runner/ffmpeg-6.1/build-aarch64/bin/ffmpeg
