@@ -1,0 +1,91 @@
+name: Build Android FFmpeg v4l2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build ffmpeg android aarch64
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake cmake libtool git pkg-config python3 wget tar zip unzip yasm nasm gperf
+
+      - name: Download Android NDK r26d
+        run: |
+          NDK_VERSION=r26d
+          mkdir -p $HOME/android-ndk
+          cd $HOME/android-ndk
+          if [ ! -d android-ndk-$NDK_VERSION ]; then
+            wget -q https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip
+            unzip -q android-ndk-$NDK_VERSION-linux.zip
+          fi
+          echo "NDK_HOME=$HOME/android-ndk/android-ndk-$NDK_VERSION" >> $GITHUB_ENV
+
+      - name: Download FFmpeg 6.1 sources
+        run: |
+          cd $HOME
+          if [ ! -d ffmpeg-6.1 ]; then
+            wget -q https://ffmpeg.org/releases/ffmpeg-6.1.tar.bz2
+            tar -xjf ffmpeg-6.1.tar.bz2
+          fi
+
+      - name: Build static ffmpeg for Android aarch64 API 24
+        run: |
+          cd $HOME/ffmpeg-6.1
+          export NDK=$HOME/android-ndk/android-ndk-r26d
+          export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+          export TARGET=aarch64
+          export API=24
+          export AR=$TOOLCHAIN/bin/aarch64-linux-android-ar
+          export AS=$TOOLCHAIN/bin/aarch64-linux-android-clang
+          export CC=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
+          export CXX=$TOOLCHAIN/bin/aarch64-linux-android$API-clang++
+          export LD=$TOOLCHAIN/bin/aarch64-linux-android-ld
+          export NM=$TOOLCHAIN/bin/aarch64-linux-android-nm
+          export STRIP=$TOOLCHAIN/bin/aarch64-linux-android-strip
+          export PKG_CONFIG_PATH=
+          ./configure \
+            --prefix=$HOME/ffmpeg-6.1/build-aarch64 \
+            --target-os=android \
+            --arch=aarch64 \
+            --cpu=armv8-a \
+            --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- \
+            --sysroot=$TOOLCHAIN/sysroot \
+            --enable-cross-compile \
+            --enable-static \
+            --disable-shared \
+            --disable-doc \
+            --disable-programs \
+            --enable-small \
+            --enable-pic \
+            --enable-zlib \
+            --enable-indev=v4l2 \
+            --enable-outdev=v4l2 \
+            --disable-debug \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-network \
+            --disable-everything \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-swscale \
+            --enable-avfilter \
+            --enable-avdevice \
+            --enable-swresample \
+            --enable-avutil \
+            --enable-ffmpeg
+          make -j$(nproc)
+          make install
+
+      - name: Upload ffmpeg binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-v4l2-android
+          path: $HOME/ffmpeg-6.1/build-aarch64/bin/ffmpeg
