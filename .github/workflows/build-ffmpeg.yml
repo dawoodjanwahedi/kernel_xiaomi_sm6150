@@ -17,7 +17,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake cmake libtool git pkg-config python3 wget tar zip unzip yasm nasm gperf
+          sudo apt-get install -y autoconf automake cmake libtool git pkg-config python3 wget tar zip unzip yasm nasm gperf perl
+
+      - name: Download gas-preprocessor
+        run: |
+          cd $HOME
+          if [ ! -f gas-preprocessor.pl ]; then
+            wget -q https://raw.githubusercontent.com/libav/gas-preprocessor/master/gas-preprocessor.pl
+            chmod +x gas-preprocessor.pl
+          fi
 
       - name: Download Android NDK r26d
         run: |
@@ -45,26 +53,25 @@ jobs:
           export TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
           export TARGET=aarch64
           export API=24
-          export AR=$TOOLCHAIN/bin/aarch64-linux-android-ar
-          export AS=$TOOLCHAIN/bin/aarch64-linux-android-as
+          export AR=$TOOLCHAIN/bin/llvm-ar
+          export AS=$HOME/gas-preprocessor.pl
           export CC=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
           export CXX=$TOOLCHAIN/bin/aarch64-linux-android$API-clang++
-          export LD=$TOOLCHAIN/bin/aarch64-linux-android-ld
-          export NM=$TOOLCHAIN/bin/aarch64-linux-android-nm
-          export RANLIB=$TOOLCHAIN/bin/aarch64-linux-android-ranlib
-          export STRIP=$TOOLCHAIN/bin/aarch64-linux-android-strip
+          export LD=$TOOLCHAIN/bin/ld.lld
+          export NM=$TOOLCHAIN/bin/llvm-nm
+          export RANLIB=$TOOLCHAIN/bin/llvm-ranlib
+          export STRIP=$TOOLCHAIN/bin/llvm-strip
           export PKG_CONFIG_PATH=
           ./configure \
             --prefix=$HOME/ffmpeg-6.1/build-aarch64 \
             --target-os=android \
             --arch=aarch64 \
             --cpu=armv8-a \
-            --cross-prefix=$TOOLCHAIN/bin/aarch64-linux-android- \
             --sysroot=$TOOLCHAIN/sysroot \
             --cc=$CC \
             --cxx=$CXX \
             --ar=$AR \
-            --as=$AS \
+            --as="$AS $CC" \
             --nm=$NM \
             --ranlib=$RANLIB \
             --strip=$STRIP \
