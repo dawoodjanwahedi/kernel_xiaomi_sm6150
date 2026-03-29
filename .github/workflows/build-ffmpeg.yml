@@ -92,7 +92,7 @@ jobs:
           make -j$(nproc)
           make install
 
-      - name: Debug: Find ffmpeg binary
+      - name: "Debug: Find ffmpeg binary"
         run: |
           echo "Finding ffmpeg binary..."
           find /home/runner -name "ffmpeg" -type f 2>/dev/null || echo "ffmpeg not found"
