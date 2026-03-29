@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #
 # Script For Building Android arm64 Kernel
@@ -18,11 +17,16 @@
 # limitations under the License.
 #
 
+set -euo pipefail
+
 # Setup colour for the script
 yellow='\033[0;33m'
 white='\033[0m'
 red='\033[0;31m'
 green='\e[0;32m'
+
+# Keep version string close to current LineageOS naming.
+LOCALVERSION_SUFFIX="${LOCALVERSION_SUFFIX:--rc1-perf}"
 
 # Deleting out "kernel complied" and zip "anykernel" from an old compilation
 echo -e "$green << cleanup >> \n $white"
@@ -46,7 +50,7 @@ rm -rf error.log
 #
 
 # Devices
-if [ "$DEVICE_TYPE" == courbet  ];
+if [ "${DEVICE_TYPE:-}" == courbet  ];
 then
 DEVICE="XIAOMI 11 LITE (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -59,7 +63,7 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="courbet"
 fi
 
-if [ "$DEVICE_TYPE" == davinci  ];
+if [ "${DEVICE_TYPE:-}" == davinci  ];
 then
 DEVICE="REDMI K20 (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -72,7 +76,7 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="davinci"
 fi
 
-if [ "$DEVICE_TYPE" == phoenix  ];
+if [ "${DEVICE_TYPE:-}" == phoenix  ];
 then
 DEVICE="REDMI K30 & POCO X2 (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -85,7 +89,7 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="phoenix"
 fi
 
-if [ "$DEVICE_TYPE" == sweet  ];
+if [ "${DEVICE_TYPE:-}" == sweet  ];
 then
 DEVICE="REDMI NOTE 10 PRO (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -98,7 +102,7 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="master"
 fi
 
-if [ "$DEVICE_TYPE" == sweetk6a  ];
+if [ "${DEVICE_TYPE:-}" == sweetk6a  ];
 then
 DEVICE="REDMI NOTE 12 PRO 4G (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -111,7 +115,7 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="sweetk6a"
 fi
 
-if [ "$DEVICE_TYPE" == violet  ];
+if [ "${DEVICE_TYPE:-}" == violet  ];
 then
 DEVICE="REDMI NOTE 7 PRO (OSS)"
 KERNEL_NAME="SLEEPY_KERNEL-OSS"
@@ -124,23 +128,38 @@ AnyKernel="https://github.com/itsshashanksp/AnyKernel3.git"
 AnyKernelbranch="violet"
 fi
 
+# Default to sweet profile when DEVICE_TYPE is not provided.
+DEFCONFIG_COMMON="${DEFCONFIG_COMMON:-vendor/sdmsteppe-perf_defconfig}"
+DEFCONFIG_DEVICE="${DEFCONFIG_DEVICE:-vendor/sweet.config}"
+DEVICE="${DEVICE:-REDMI NOTE 10 PRO (OSS)}"
+KERNEL_NAME="${KERNEL_NAME:-SLEEPY_KERNEL-OSS}"
+CODENAME="${CODENAME:-SWEET}"
+AnyKernel="${AnyKernel:-https://github.com/itsshashanksp/AnyKernel3.git}"
+AnyKernelbranch="${AnyKernelbranch:-master}"
+
 # Kernel build release tag
-KRNL_REL_TAG="$KERNEL_TAG"
+KRNL_REL_TAG="${KERNEL_TAG:-test}"
 
 HOSST="sleeping-bag"
 USEER="itsshashanksp"
 
 # setup telegram env
-export BOT_MSG_URL="https://api.telegram.org/bot$API_BOT/sendMessage"
-export BOT_BUILD_URL="https://api.telegram.org/bot$API_BOT/sendDocument"
+export BOT_MSG_URL="https://api.telegram.org/bot${API_BOT:-}/sendMessage"
+export BOT_BUILD_URL="https://api.telegram.org/bot${API_BOT:-}/sendDocument"
 
 tg_post_msg() {
+        if [ -z "${API_BOT:-}" ] || [ -z "${CHATID:-}" ]; then
+                return 0
+        fi
         curl -s -X POST "$BOT_MSG_URL" -d chat_id="$2" \
         -d "parse_mode=html" \
         -d text="$1"
 }
 
 tg_post_build() {
+        if [ -z "${API_BOT:-}" ] || [ -z "${CHATID:-}" ]; then
+                return 0
+        fi
         #Post MD5Checksum alongwith for easeness
         MD5CHECK=$(md5sum "$1" | cut -d' ' -f1)
 
@@ -153,6 +172,9 @@ tg_post_build() {
 }
 
 tg_error() {
+        if [ -z "${API_BOT:-}" ] || [ -z "${CHATID:-}" ]; then
+                return 0
+        fi
         curl --progress-bar -F document=@"$1" "$BOT_BUILD_URL" \
         -F chat_id="$2" \
         -F "disable_web_page_preview=true" \
@@ -160,35 +182,69 @@ tg_error() {
         -F caption="$3Failed to build , check <code>error.log</code>"
 }
 
-# clang stuff
-		echo -e "$green << cloning clang >> \n $white"
-		git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git "$HOME"/clang
+pick_tool() {
+        local tool="$1"
+        if command -v "${tool}-21" >/dev/null 2>&1; then
+                command -v "${tool}-21"
+        elif command -v "$tool" >/dev/null 2>&1; then
+                command -v "$tool"
+        else
+                echo "$tool"
+        fi
+}
 
-	export PATH="$HOME/clang/bin:$PATH"
-	export KBUILD_COMPILER_STRING=$("$HOME"/clang/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
+# clang stuff
+echo -e "$green << preparing clang toolchain >> \n $white"
+if command -v clang-21 >/dev/null 2>&1; then
+        CLANG_BIN="$(command -v clang-21)"
+        echo -e "$green << using system clang-21 >> \n $white"
+else
+        echo -e "$green << cloning clang-r547379 fallback >> \n $white"
+        git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git "$HOME"/clang
+        export PATH="$HOME/clang/bin:$PATH"
+        CLANG_BIN="$HOME/clang/bin/clang"
+fi
+
+AR_BIN="$(pick_tool llvm-ar)"
+NM_BIN="$(pick_tool llvm-nm)"
+LD_BIN="$(pick_tool ld.lld)"
+OBJCOPY_BIN="$(pick_tool llvm-objcopy)"
+OBJDUMP_BIN="$(pick_tool llvm-objdump)"
+STRIP_BIN="$(pick_tool llvm-strip)"
+
+export KBUILD_COMPILER_STRING="$("$CLANG_BIN" --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')"
 
 # Setup build process
 
 build_kernel() {
 Start=$(date +"%s")
 
-	make -j$(nproc --all) O=out \
+        make -j"$(nproc --all)" O=out \
                               ARCH=arm64 \
                               LLVM=1 \
                               LLVM_IAS=1 \
-                              AR=llvm-ar \
-                              NM=llvm-nm \
-                              LD=ld.lld \
-                              OBJCOPY=llvm-objcopy \
-                              OBJDUMP=llvm-objdump \
-                              STRIP=llvm-strip \
-                              CC=clang \
+                              LOCALVERSION="$LOCALVERSION_SUFFIX" \
+                              AR="$AR_BIN" \
+                              NM="$NM_BIN" \
+                              LD="$LD_BIN" \
+                              OBJCOPY="$OBJCOPY_BIN" \
+                              OBJDUMP="$OBJDUMP_BIN" \
+                              STRIP="$STRIP_BIN" \
+                              CC="$CLANG_BIN" \
                               CLANG_TRIPLE=aarch64-linux-gnu- \
                               CROSS_COMPILE=aarch64-linux-android- \
-                              CROSS_COMPILE_ARM32=arm-linux-androideabi-  2>&1 | tee error.log
+                              CROSS_COMPILE_ARM32=arm-linux-androideabi- 2>&1 | tee error.log
 
 End=$(date +"%s")
 Diff=$(($End - $Start))
+}
+
+set_kconfig_bool() {
+        local key="$1"
+        local value="$2"
+        sed -i "/^${key}=.*/d" out/.config
+        sed -i "/^# ${key} is not set/d" out/.config
+        echo "${key}=${value}" >> out/.config
 }
 
 # Let's start
@@ -206,8 +262,14 @@ make clean && make mrproper
 make "$DEFCONFIG_COMMON" O=out
 make "$DEFCONFIG_DEVICE" O=out
 
+# Force-enable v4l2loopback symbols used in this tree.
+set_kconfig_bool CONFIG_V4L2_LOOPBACK y
+set_kconfig_bool CONFIG_V4L2LOOPBACK y
+set_kconfig_bool CONFIG_VIDEO_V4L2LOOPBACK y
+make olddefconfig O=out
+
 echo -e "$yellow << compiling the kernel >> \n $white"
-tg_post_msg "Successful triggered Compiling kernel for $DEVICE $CODENAME" "$CHATID"
+tg_post_msg "Successful triggered Compiling kernel for $DEVICE $CODENAME" "${CHATID:-}"
 
 build_kernel || error=true
 
@@ -216,42 +278,42 @@ KERVER=$(make kernelversion)
 
 export IMG="$PWD"/out/arch/arm64/boot/Image.gz
 export dtbo="$PWD"/out/arch/arm64/boot/dtbo.img
-export dtb="$PWD"/out/arch/arm64/boot/dtb.img 
+export dtb="$PWD"/out/arch/arm64/boot/dtb.img
 
-        if [ -f "$IMG" ]; then
-                echo -e "$green << Build completed in $(($Diff / 60)) minutes and $(($Diff % 60)) seconds >> \n $white"
-        else
-                echo -e "$red << Failed to compile the kernel , Check up to find the error >>$white"
-                tg_post_msg "Kernel failed to compile uploading error log"
-                tg_error "error.log" "$CHATID"
-                tg_post_msg "done" "$CHATID"
-                rm -rf out
-                rm -rf testing.log
-                rm -rf error.log
-                rm -rf zipsigner-3.0.jar
-                exit 1
-        fi
+if [ -f "$IMG" ]; then
+        echo -e "$green << Build completed in $(($Diff / 60)) minutes and $(($Diff % 60)) seconds >> \n $white"
+else
+        echo -e "$red << Failed to compile the kernel , Check up to find the error >>$white"
+        tg_post_msg "Kernel failed to compile uploading error log" "${CHATID:-}"
+        tg_error "error.log" "${CHATID:-}"
+        tg_post_msg "done" "${CHATID:-}"
+        rm -rf out
+        rm -rf testing.log
+        rm -rf error.log
+        rm -rf zipsigner-3.0.jar
+        exit 1
+fi
 
-        if [ -f "$IMG" ]; then
-                echo -e "$green << cloning AnyKernel from your repo >> \n $white"
-                git clone --depth=1 "$AnyKernel" --single-branch -b "$AnyKernelbranch" zip
-                echo -e "$yellow << making kernel zip >> \n $white"
-                cp -r "$IMG" zip/
-                cp -r "$dtbo" zip/
-                cp -r "$dtb" zip/
-                cd zip
-                export ZIP="$KERNEL_NAME"-"$KRNL_REL_TAG"-"$CODENAME"
-                zip -r9 "$ZIP" * -x .git README.md LICENSE *placeholder
-                curl -sLo zipsigner-3.0.jar https://gitlab.com/itsshashanksp/zipsigner/-/raw/master/bin/zipsigner-3.0-dexed.jar
-                java -jar zipsigner-3.0.jar "$ZIP".zip "$ZIP"-signed.zip
-                tg_post_msg "Kernel successfully compiled uploading ZIP" "$CHATID"
-                tg_post_build "$ZIP"-signed.zip "$CHATID"
-                tg_post_msg "done" "$CHATID"
-                cd ..
-                rm -rf error.log
-                rm -rf out
-                rm -rf zip
-                rm -rf testing.log
-                rm -rf zipsigner-3.0.jar
-                exit
-        fi
+if [ -f "$IMG" ]; then
+        echo -e "$green << cloning AnyKernel from your repo >> \n $white"
+        git clone --depth=1 "$AnyKernel" --single-branch -b "$AnyKernelbranch" zip
+        echo -e "$yellow << making kernel zip >> \n $white"
+        cp -r "$IMG" zip/
+        cp -r "$dtbo" zip/ 2>/dev/null || true
+        cp -r "$dtb" zip/ 2>/dev/null || true
+        cd zip
+        export ZIP="$KERNEL_NAME"-"$KRNL_REL_TAG"-"$CODENAME"
+        zip -r9 "$ZIP" * -x .git README.md LICENSE *placeholder
+        curl -sLo zipsigner-3.0.jar https://gitlab.com/itsshashanksp/zipsigner/-/raw/master/bin/zipsigner-3.0-dexed.jar
+        java -jar zipsigner-3.0.jar "$ZIP".zip "$ZIP"-signed.zip
+        tg_post_msg "Kernel successfully compiled uploading ZIP" "${CHATID:-}"
+        tg_post_build "$ZIP"-signed.zip "${CHATID:-}"
+        tg_post_msg "done" "${CHATID:-}"
+        cd ..
+        rm -rf error.log
+        rm -rf out
+        rm -rf zip
+        rm -rf testing.log
+        rm -rf zipsigner-3.0.jar
+        exit
+fi

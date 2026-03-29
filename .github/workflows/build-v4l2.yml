@@ -14,21 +14,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git make bc bison openssl curl zip kmod cpio flex libelf-dev libssl-dev libtfm-dev wget device-tree-compiler ca-certificates python3 python-is-python3 binutils binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
 
-    - name: Clone clang
-      run: git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git $HOME/clang
+    - name: Prepare clang toolchain
+      run: |
+        if sudo apt-get install -y clang-21 lld-21 llvm-21 >/dev/null 2>&1; then
+          echo "Using system clang-21"
+        else
+          echo "clang-21 not available on runner, falling back to clang-r547379"
+          git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git $HOME/clang
+          echo "$HOME/clang/bin" >> $GITHUB_PATH
+        fi
 
     - name: Build kernel
       run: |
-        export PATH="$HOME/clang/bin:$PATH"
-        export ARCH=arm64
-        export SUBARCH=arm64
-        export KBUILD_BUILD_HOST=sleeping-bag
-        export KBUILD_BUILD_USER=itsshashanksp
-        mkdir -p out
-        make clean && make mrproper
-        make vendor/sdmsteppe-perf_defconfig O=out
-        make vendor/sweet.config O=out
-        make -j$(nproc) O=out ARCH=arm64 LLVM=1 LLVM_IAS=1 AR=llvm-ar NM=llvm-nm LD=ld.lld OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-android- CROSS_COMPILE_ARM32=arm-linux-androideabi-
+        chmod +x ./build_kernel.sh
+        ./build_kernel.sh
 
     - name: Package
       run: |
