@@ -74,13 +74,20 @@ jobs:
             --enable-small \
             --enable-pic \
             --enable-zlib \
-            --enable-indev=v4l2 \
-            --enable-outdev=v4l2 \
             --disable-debug \
             --disable-ffplay \
             --disable-ffprobe \
             --disable-network \
             --disable-everything \
+            --enable-protocol=file \
+            --enable-demuxer=mov,mp4,m4a,3gp,3g2,mj2 \
+            --enable-decoder=h264,aac,rawvideo \
+            --enable-encoder=rawvideo,yuv4 \
+            --enable-muxer=v4l2,rawvideo \
+            --enable-filter=scale,format \
+            --enable-outdev=v4l2 \
+            --enable-indev=v4l2 \
+            --enable-parser=h264,aac \
             --enable-avcodec \
             --enable-avformat \
             --enable-swscale \
