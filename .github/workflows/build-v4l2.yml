@@ -29,16 +29,8 @@ jobs:
         chmod +x ./build_kernel.sh
         ./build_kernel.sh
 
-    - name: Package
-      run: |
-        git clone --depth=1 https://github.com/itsshashanksp/AnyKernel3.git --single-branch -b master zip
-        cp out/arch/arm64/boot/Image.gz zip/
-        cp out/arch/arm64/boot/dtbo.img zip/ 2>/dev/null || true
-        cp out/arch/arm64/boot/dtb.img zip/ 2>/dev/null || true
-        cd zip && zip -r9 SLEEPY-v4l2-SWEET.zip * -x .git README.md LICENSE *placeholder
-
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: kernel-zip
-        path: zip/SLEEPY-v4l2-SWEET.zip
+        path: zip/SLEEPY_KERNEL-OSS-test-SWEET-signed.zip

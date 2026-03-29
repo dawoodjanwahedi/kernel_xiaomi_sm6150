@@ -314,7 +314,6 @@ if [ -f "$IMG" ]; then
         cd ..
         rm -rf error.log
         rm -rf out
-        rm -rf zip
         rm -rf testing.log
         rm -rf zipsigner-3.0.jar
         exit
