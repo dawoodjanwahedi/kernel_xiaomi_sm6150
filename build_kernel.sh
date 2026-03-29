@@ -200,7 +200,9 @@ if command -v clang-21 >/dev/null 2>&1; then
         echo -e "$green << using system clang-21 >> \n $white"
 else
         echo -e "$green << cloning clang-r547379 fallback >> \n $white"
-        git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git "$HOME"/clang
+        if [ ! -d "$HOME/clang" ]; then
+                git clone --depth=1 https://gitlab.com/itsshashanksp/android_prebuilts_clang_host_linux-x86_clang-r547379.git "$HOME"/clang
+        fi
         export PATH="$HOME/clang/bin:$PATH"
         CLANG_BIN="$HOME/clang/bin/clang"
 fi
